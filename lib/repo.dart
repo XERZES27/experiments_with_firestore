@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 
 import 'package:flutter/services.dart';
@@ -14,6 +15,7 @@ class User {
 
 
 class AuthService {
+  bool isSignedIn__;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   User _userFromFirebaseUser(FirebaseUser user) {
@@ -32,16 +34,49 @@ class AuthService {
   return callable;
   }
 
-  Stream<User> get user {
 
-    return _auth.onAuthStateChanged
-        .map((FirebaseUser user) => _userFromFirebaseUser(user));
+  Future writeTime(dynamic date) async{
+    var user = await _auth.currentUser();
+    if(user!=null){
+      return Firestore.instance.document('vendors/${user.uid}/').updateData({
+        'date':FieldValue.arrayUnion(date)
+      });
+    }
   }
 
-  bool isSignedIn()  {
+
+  Future<List<String>> getCategory ()async{
+    final CollectionReference categoriesCollection = Firestore.instance.collection('Catagories');
+    final List<String> categoryList=[];
 
 
-    return _auth.currentUser() != null;
+
+    await categoriesCollection.getDocuments().then((onValue){
+      onValue.documents.forEach((document){
+        print(document.documentID);
+        categoryList.add(document.documentID);
+      });
+    });
+
+    return categoryList;
+
+
+
+  }
+
+  Stream<User> get user {
+    return _auth.onAuthStateChanged
+        .map((FirebaseUser user) {
+          if(user!=null){isSignedIn__ = true;}
+          else{isSignedIn__ = false;}
+          return _userFromFirebaseUser(user);});
+  }
+
+  Future<bool> isSignedIn()  async{
+  var user = await _auth.currentUser();
+  return user!=null;
+
+
   }
 
   Future<bool> isVerified() async{
@@ -54,8 +89,6 @@ class AuthService {
    await  _auth.currentUser().then((onValue){
         isEmailVerified = onValue.isEmailVerified;
     });
-
-
 
     print(isEmailVerified.toString());
     return isEmailVerified;
@@ -94,7 +127,6 @@ class AuthService {
       AuthResult result =  await _auth.signInWithEmailAndPassword(
           email: email, password: password);
       return result.user;
-
   }
 
   Future signUp(String email, String password) async {
